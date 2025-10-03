@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebGIS Project - US Stadiums</title>
+  {% load static %}
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet Browser Print (افزوده شد: CSS پلاگین) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.browser.print/dist/leaflet.browser.print.min.css" />
+  <script src="https://unpkg.com/leaflet.browser.print/dist/leaflet.browser.print.min.js"></script>
+
+  <!-- Leaflet Draw -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+
+
+  <style>
+    /* Base */
+html,
+body,
+#map {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: #1f2937;
+}
+
+/* ---------- Left Sidebar (single) ---------- */
+.sidebar {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  width: 260px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(2px);
+  box-shadow: 2px 0 10px rgba(0, 0, 0, .15);
+  z-index: 1000;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transform: translateX(0);
+  transition: transform .3s ease-in-out;
+}
+
+.sidebar.closed {
+  transform: translateX(-100%);
+}
+
+.sidebar h3 {
+  margin: 0 0 10px;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+.sidebar input[type="text"] {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.sidebar input[type="text"]:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
+}
+
+.sidebar button {
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #0d6efd;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background .2s, transform .05s;
+}
+
+.sidebar button:hover {
+  background: #0b5ed7;
+}
+
+.sidebar button:active {
+  transform: translateY(1px);
+}
+
+.sidebar a button {
+  width: 100%;
+  background: #6f42c1;
+}
+
+.sidebar a button:hover {
+  background: #59309f;
+}
+
+.sidebar .logout-btn {
+  background: #dc3545;
+}
+
+.sidebar .logout-btn:hover {
+  background: #c22f3c;
+}
+
+/* ---------- Toggle button for LEFT sidebar ---------- */
+#sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  left: 270px;
+  background: #111827;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 1100;
+  transition: left .3s ease-in-out, background .2s;
+  user-select: none;
+}
+
+#sidebar-toggle:hover {
+  background: #1f2937;
+}
+
+.sidebar.closed~#sidebar-toggle {
+  left: 10px;
+}
+
+/* ---------- Map area reacts to sidebar ---------- */
+#map {
+  margin-left: 260px;
+  transition: margin-left .3s ease-in-out;
+}
+
+.sidebar.closed~#sidebar-toggle~#map {
+  margin-left: 0;
+}
+
+/* ---------- Leaflet controls elevation fix ---------- */
+.leaflet-control {
+  z-index: 1200;
+}
+
+/* ---------- Legend (inline-block swatches) ---------- */
+.info.legend {
+  background: #ffffff;
+  padding: 8px 10px;
+  font: 14px/1.3 Arial, Helvetica, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  color: #374151;
+  z-index: 1500;
+  min-width: 90px;
+}
+
+.info.legend i {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  margin-right: 8px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12);
+  vertical-align: middle;
+  opacity: .95;
+}
+
+/* ---------- Forms inside popups ---------- */
+/* ===== Stadium Form Popup — Polished UI ===== */
+.stadium-form-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid #e5e7eb;
+}
+.stadium-form-popup .leaflet-popup-tip {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.stadium-form-popup .leaflet-popup-content {
+  margin: 0;
+  padding: 16px 16px 14px;
+  min-width: 280px; /* از 220 کمی بزرگ‌تر برای راحتی */
+}
+
+/* عنوان فرم */
+.stadium-form-popup h5 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: #111827;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stadium-form-popup h5::before {
+  content: "🏟️";
+  font-size: 18px;
+}
+
+/* لیبل‌ها */
+.stadium-form-popup label {
+  display: block;
+  margin: 8px 0 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* اینپوت‌ها */
+.stadium-form-popup input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background-color .2s, transform .06s;
+}
+.stadium-form-popup input[type="text"]::placeholder {
+  color: #9ca3af;
+}
+.stadium-form-popup input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background-color .2s, transform .06s;
+
+  /* 👇 این خط جدید مهمه */
+  box-sizing: border-box;
+}
+
+/* دکمه‌ها */
+.stadium-form-popup button {
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, .35);
+  transition: transform .06s, box-shadow .2s, filter .2s;
+  margin-top: 6px;
+}
+.stadium-form-popup button:hover {
+  filter: brightness(1.03);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, .42);
+}
+.stadium-form-popup button:active {
+  transform: translateY(1px);
+}
+.stadium-form-popup button:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* دکمه بستن پاپ‌آپ */
+.stadium-form-popup .leaflet-popup-close-button {
+  color: #6b7280;
+  transition: color .2s, transform .08s;
+}
+.stadium-form-popup .leaflet-popup-close-button:hover {
+  color: #111827;
+  transform: scale(1.06);
+}
+
+/* ردیف‌های دو ستونه اختیاری (اگر بعداً فیلدها رو دو‌ستونه کردی) */
+.stadium-form-popup .row {
+  display: flex;
+  gap: 10px;
+}
+.stadium-form-popup .row > * {
+  flex: 1;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 980px) {
+  #map {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    width: 86%;
+    max-width: 360px;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.closed {
+    transform: translateX(-100%);
+  }
+
+  #sidebar-toggle {
+    left: 10px;
+  }
+}
+
+/* ---------- Progress Overlay ---------- */
+#loading-overlay {
+    position: fixed; inset: 0; z-index: 4000;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(17, 24, 39, 0.45); /* تیره */
+    backdrop-filter: blur(1px);
+  }
+#loading-box {
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  gap: 12px;
+  background: transparent;   /* ⬅️ شفاف شد */
+  padding: 16px 20px; 
+  border-radius: 12px; 
+  box-shadow: none;          /* ⬅️ سایه هم حذف بشه */
+}
+
+  .spinner {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 4px solid #e5e7eb; border-top-color: #0d6efd;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font: 600 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #eee9e5; }
+
+
+  #map.selecting-print { cursor: crosshair !important; }
+
+
+  /* ===== Stadium Edit Popup ===== */
+/* ===== Stadium Edit Popup ===== */
+.stadium-edit-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid #e5e7eb;
+}
+
+.stadium-edit-popup .leaflet-popup-tip {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.stadium-edit-popup .leaflet-popup-content {
+  margin: 0;
+  padding: 16px 16px 14px;
+  min-width: 280px;
+}
+
+.stadium-edit-popup h5 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: #111827;
+  font-weight: 700;
+}
+
+.stadium-edit-popup label {
+  display: block;
+  margin: 8px 0 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stadium-edit-popup input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.stadium-edit-popup input[type="text"]:focus {
+  background: #fff;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(59,130,246,.15);
+}
+
+.stadium-edit-popup button {
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f59e0b, #d97706);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+  box-shadow: 0 8px 20px rgba(217,119,6,.35);
+  transition: transform .06s, box-shadow .2s;
+}
+.stadium-edit-popup button:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 10px 24px rgba(217,119,6,.45);
+}
+.stadium-edit-popup button:active {
+  transform: translateY(1px);
+}
+
+
+  </style>
+</head>
+
+<body>
+  <div id="loading-overlay" aria-hidden="true">
+    <div id="loading-box">
+      <div class="spinner" role="status" aria-label="Loading"></div>
+      <div class="loading-text" id="loading-text">Loading report...</div>
+    </div>
+  </div>
+
+  <img src="{% static 'images/soccer-stadium.png' %}" alt="test"
+    style="position:fixed;bottom:10px;left:10px;width:64px;height:64px;z-index:9999;">
+
+  <!-- SINGLE LEFT SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <h3> Dashboard</h3>
+
+    <input type="text" id="search-input" placeholder="Stadium\State name..." />
+    <button id="search-button">🔍 Search</button>
+    <button id="export-button">📤 Export GeoJSON</button>
+    <button id="nearest-button">📍 Nearest Stadium</button>
+    <button id="voronoi-button">📐 Toggle Voronoi</button>
+
+
+    <button id="print-button">🖨️ Print Map</button>
+
+    <!-- 📊 دکمه گزارش آماری -->
+    <button id="report-button">📊 Statistical Report</button>
+
+{% if user.is_authenticated and not is_viewer %}
+  <button id="add-stadium-button">➕ Add Stadium</button>
+  <button id="edit-stadium-button">✏️ Edit Stadium</button>
+{% endif %}
+
+<button id="route-button">🚗 Routing</button>
+
+
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="logout-btn">Logout</button>
+    </form>
+  </div>
+
+  <!-- TOGGLE FOR LEFT SIDEBAR -->
+  <div id="sidebar-toggle">&#9776;</div>
+
+  <!-- MAP -->
+  <div id="map"></div>
+
+
+
+  <script>
+    /* =========================
+       Helpers & CSRF
+    ========================= */
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        for (const c of document.cookie.split(';')) {
+          const cookie = c.trim();
+          if (cookie.startsWith(name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    function getColor(d) {
+      return d > 50 ? '#800026' :
+        d > 30 ? '#BD0026' :
+          d > 20 ? '#E31A1C' :
+            d > 10 ? '#FC4E2A' :
+              d > 5 ? '#FD8D3C' :
+                d > 0 ? '#FEB24C' : '#FFEDA0';
+    }
+
+    /* =========================
+       Sidebar Toggle
+    ========================= */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('closed');
+      toggleBtn.innerHTML = sidebar.classList.contains('closed') ? '&#9776;' : '&times;';
+      setTimeout(() => map.invalidateSize(), 320);
+    });
+
+/* =========================
+   Map Init
+========================= */
+/* =========================
+   Map Init + Base Layers
+========================= */
+const map = L.map('map', { zoomControl: false }).setView([39.82, -98.57], 5);
+
+// --- Base layers ---
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+});
+
+const osmHot = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors, Tiles style by HOT'
+});
+
+const esriSat = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri & the GIS User Community'
+  }
+);
+
+const cartoDark = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OSM &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 20
+  }
+);
+
+// --- پیش‌فرض روی نقشه (OSM Standard) ---
+osm.addTo(map);
+
+// --- کنترل لایه‌ها ---
+const baseMaps = {
+  "OSM Standard": osm,
+  "OSM Humanitarian": osmHot,
+  "Esri Satellite": esriSat,
+  "Carto Dark": cartoDark
+};
+L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+
+
+// === Print (only Custom) ===
+
+// 1) رجیستر کنترل (لازم است تا افزونه روی map گوش بدهد)
+const browserControl = L.control.browserPrint({
+  closePopupsOnPrint: false,
+  // حداقل یک مود لازم است؛ ما فقط Custom می‌خواهیم
+  printModes: [ L.BrowserPrint.Mode.Custom("A4", { title: "Select area" }) ]
+}).addTo(map);
+
+// 2) دکمه داشبورد → toggle (فعال/کنسل)
+const printBtn = document.getElementById('print-button');
+let printingActive = false;
+
+function setPrintSelecting(on) {
+  printingActive = on;
+  const mapEl = document.getElementById('map');
+  if (on) {
+    mapEl.classList.add('selecting-print');
+    printBtn.style.background = '#4caf50';
+    printBtn.textContent = '🖨️ Select area (click to cancel)';
+  } else {
+    mapEl.classList.remove('selecting-print');
+    printBtn.style.background = '#0d6efd';
+    printBtn.textContent = '🖨️ Print Map';
+  }
+}
+
+printBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+
+  if (!printingActive) {
+    // شروع انتخاب محدوده با Custom (افزونه خودش اورلی انتخاب را می‌سازد)
+    setPrintSelecting(true);
+    const mode = L.BrowserPrint.Mode.Custom("A4", { title: "Select area" });
+    // ⭐ طبق مستندات رسمی: فراخوانی برنامه‌ای
+    // https://github.com/Igor-Vladyka/leaflet.browser.print#custom-print-button-action
+    browserControl.browserPrint.print(mode);
+  } else {
+    // کنسل
+    try { browserControl.cancel(); } catch (_) {}
+    setPrintSelecting(false);
+  }
+});
+
+// وقتی پرینت شروع/تمام شد → دکمه و کرسر به حالت عادی برگردند
+map.on(L.BrowserPrint.Event.PrintStart, () => setPrintSelecting(false));
+map.on(L.BrowserPrint.Event.PrintEnd,   () => setPrintSelecting(false));
+
+/* =========================
+   Panes
+========================= */
+map.createPane('choroplethPane');
+map.getPane('choroplethPane').style.zIndex = 350;
+
+map.createPane('stadiumsPane');
+map.getPane('stadiumsPane').style.zIndex = 650;
+
+
+    /* =========================
+       Choropleth: States + Stats
+    ========================= */
+    let statesGeoJsonLayer;
+    fetch('/api/statistics/all/')
+      .then(r => r.json())
+      .then(stats =>
+        fetch('http://localhost:8080/geoserver/final_project/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=final_project:US_STATES&outputFormat=application/json')
+          .then(r => r.json())
+          .then(geo => {
+            statesGeoJsonLayer = L.geoJSON(geo, {
+              pane: 'choroplethPane',
+              style: f => ({
+                fillColor: getColor(stats[f.properties.NAME] || 0),
+                fillOpacity: 0.7,
+                color: 'white',
+                weight: 1
+              }),
+              onEachFeature: (f, l) => {
+                const name = f.properties.NAME, count = stats[name] || 0;
+                l.on('mouseover', e => e.target.setStyle({ weight: 3, color: '#666', fillOpacity: 0.9 }));
+                l.on('mouseout', e => statesGeoJsonLayer.resetStyle(e.target));
+                l.on('click', e => L.popup().setLatLng(e.latlng).setContent(`<b>${name}</b><br/>Stadiums: ${count}`).openOn(map));
+              }
+            }).addTo(map);
+          })
+      );
+
+/* =========================
+   Export WFS (GeoJSON) as Download
+========================= */
+function doExport() {
+  const url =
+    'http://localhost:8080/geoserver/final_project/ows?' +
+    'service=WFS&version=1.0.0&request=GetFeature&' +
+    'typeName=final_project:US_STADIUMS&outputFormat=application/json';
+
+  fetch(url)
+    .then(response => response.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'US_STADIUMS.geojson';   // 📂 اسم فایل
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    })
+    .catch(err => {
+      console.error("Export failed", err);
+      alert("Export failed!");
+    });
+}
+
+document.getElementById('export-button').addEventListener('click', doExport);
+
+
+    /* =========================
+       Search
+    ========================= */
+    function performSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      if (!q) return;
+
+      fetch(`/api/search/?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data.length) {
+            alert('No result found.');
+            return;
+          }
+
+          // اگر چندتا نتیجه هست، همه رو نشون بده
+          data.forEach(item => {
+            const ll = [parseFloat(item.LATITUDE), parseFloat(item.LONGITUDE)];
+
+            if (item.TYPE === 'stadium') {
+              L.marker(ll).addTo(map).bindPopup(
+                `<h5>${item.NAME}</h5>
+                <p><b>City:</b> ${item.CITY}</p>
+                <p><b>State:</b> ${item.STATE}</p>`
+              ).openPopup();
+            } else if (item.TYPE === 'state') {
+              L.circleMarker(ll, {radius:8, color:'blue'}).addTo(map).bindPopup(
+                `<h5>State: ${item.NAME}</h5>
+                <p>Abbr: ${item.STUSPS}</p>`
+              ).openPopup();
+            }
+
+            // روی اولین نتیجه فوکوس کن
+            map.setView(ll, item.TYPE === 'stadium' ? 12 : 6);
+          });
+        });
+    }
+
+
+    document.getElementById('search-button').addEventListener('click', performSearch);
+    document.getElementById('search-input').addEventListener('keypress', e => {
+      if (e.key === 'Enter') { e.preventDefault(); performSearch(); }
+    });
+
+    /* =========================
+       Legend
+    ========================= */
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create('div', 'info legend');
+      const grades = [0, 5, 10, 20, 30, 50];
+      for (let i = 0; i < grades.length; i++) {
+        div.innerHTML +=
+          '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+          grades[i] + (grades[i + 1] ? '–' + grades[i + 1] + '<br>' : '+');
+      }
+      return div;
+    };
+    legend.addTo(map);
+
+    /* =========================
+       Stadiums WFS with custom icon
+    ========================= */
+function getOidFromFeature(feature) {
+  if (!feature) return null;
+  const p = feature.properties || {};
+
+  if (p.OBJECTID != null) return p.OBJECTID;
+
+  if (typeof feature.id === 'string') {
+    const m = feature.id.match(/\.(\d+)$/);
+    if (m) return parseInt(m[1], 10);
+  }
+
+  return null;
+}
+
+const stadiumIcon = L.icon({
+  iconUrl: "{% static 'images/soccer-stadium.png' %}",
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -28],
+  className: 'stadium-icon'
+});
+
+const WEATHER_API_KEY = "c4a9fd90c51349f3a13203121251309";
+
+let stadiumsLayer = L.geoJSON(null, {
+  pointToLayer: (feature, latlng) =>
+    L.marker(latlng, { icon: stadiumIcon, pane: 'stadiumsPane' }),
+
+  onEachFeature: (feature, layer) => {
+    const p = feature.properties || {};
+    const oid = getOidFromFeature(feature);
+    if (!layer.feature.properties) layer.feature.properties = {};
+    layer.feature.properties._oid = oid;
+
+    const name = p.NAME || 'Stadium';
+    const city = p.CITY || '-';
+    const state = p.STATE || '-';
+
+    // --- کلیک روی هر استادیوم ---
+    layer.on('click', () => {
+      /* ✏️ حالت ویرایش */
+      if (editMode) {
+        const oid2 = getOidFromFeature(layer.feature);
+        if (!oid2) { alert('No OBJECTID found for this feature.'); return; }
+
+        const content = `
+          <form id="edit-stadium-form">
+            <h5>Edit Stadium</h5>
+            <label>Name:</label>
+            <input type="text" name="name" value="${p.NAME || ''}" required><br>
+            <label>City:</label>
+            <input type="text" name="city" value="${p.CITY || ''}" required><br>
+            <label>State (abbr):</label>
+            <input type="text" name="state" value="${p.STATE || ''}" maxlength="2" required><br>
+            <button type="submit">Update</button>
+          </form>`;
+
+        layer.bindPopup(content, { className: 'stadium-edit-popup' }).openPopup();
+
+        setTimeout(() => {
+          const form = document.getElementById('edit-stadium-form');
+          if (!form) return;
+
+          form.addEventListener('submit', ev => {
+            ev.preventDefault();
+            layer.closePopup();
+
+            fetch(`/api/stadiums/update/${oid2}/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+              body: JSON.stringify({
+                name: form.name.value.trim(),
+                city: form.city.value.trim(),
+                state: form.state.value.trim().toUpperCase()
+              })
+            })
+              .then(r => r.json())
+              .then(res => {
+                if (res.status === 'success') {
+                  alert('Updated successfully!');
+                  loadStadiums();
+                } else {
+                  alert('Error: ' + (res.message || 'Update failed'));
+                }
+              })
+              .catch(() => alert('Server error.'));
+          });
+        }, 50);
+
+        return; // ❌ دیگه ادامه اجرا نشه
+      }
+
+      /* 🚗 حالت مسیر‌یابی */
+      if (routingMode) {
+        const userLatLng = map.getCenter();   // فعلاً مبدا = مرکز نقشه
+        const stadiumLatLng = layer.getLatLng();
+
+        const url = `https://router.project-osrm.org/route/v1/driving/` +
+          `${userLatLng.lng},${userLatLng.lat};${stadiumLatLng.lng},${stadiumLatLng.lat}` +
+          `?overview=full&geometries=geojson`;
+
+        fetch(url)
+          .then(r => r.json())
+          .then(data => {
+            if (!data.routes || !data.routes.length) {
+              alert("No route found!");
+              return;
+            }
+            const route = data.routes[0];
+            routeLayer.clearLayers(); // پاک کردن مسیر قبلی
+
+            const line = L.geoJSON(route.geometry, {
+              style: { color: "blue", weight: 4 }
+            }).addTo(routeLayer);
+
+            const distanceKm = (route.distance / 1000).toFixed(2);
+            const durationMin = (route.duration / 60).toFixed(1);
+
+            layer.bindPopup(
+              `<h5>${name}</h5>
+               <p><b>City:</b> ${city}</p>
+               <p><b>Distance:</b> ${distanceKm} km</p>
+               <p><b>ETA:</b> ${durationMin} min</p>`
+            ).openPopup();
+
+            map.fitBounds(line.getBounds(), { padding: [30, 30] });
+          })
+          .catch(() => alert("Routing server error!"));
+
+        return; // ❌ دیگه ادامه اجرا نشه
+      }
+
+      /* 🌦 حالت نمایش آب‌وهوا */
+      const [lng, lat] = feature.geometry.coordinates;
+      const popupBase = `
+        <h5>${name}</h5>
+        <p><strong>City:</strong> ${city}</p>
+        <p><strong>State:</strong> ${state}</p>
+        <hr><p>Loading weather...</p>`;
+      layer.bindPopup(popupBase).openPopup();
+
+      fetch(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${lat},${lng}`)
+        .then(r => r.json())
+        .then(data => {
+          const w = data.current;
+          const popupContent = `
+            <h5>${name}</h5>
+            <p><strong>City:</strong> ${city}</p>
+            <p><strong>State:</strong> ${state}</p>
+            <hr>
+            <p><b>🌡️ Temp:</b> ${w.temp_c} °C (Feels like ${w.feelslike_c} °C)</p>
+            <p><b>🌤️ Condition:</b> ${w.condition.text}</p>
+            <p><b>💨 Wind:</b> ${w.wind_kph} km/h (${w.wind_dir})</p>
+            <p><b>💧 Humidity:</b> ${w.humidity}%</p>
+            <img src="${w.condition.icon}" alt="Weather icon"/>
+          `;
+          layer.setPopupContent(popupContent);
+        })
+        .catch(() => {
+          layer.setPopupContent(`<h5>${name}</h5><p>Error loading weather.</p>`);
+        });
+    });
+  }
+}).addTo(map);
+
+function loadStadiums() {
+  showSpinner('Updating stadiums…');
+  fetch('/api/stadiums/all/')
+    .then(r => r.json())
+    .then(geojson => {
+      stadiumsLayer.clearLayers();
+      stadiumsLayer.addData(geojson);
+      drawVoronoi(geojson);
+    })
+    .catch(() => console.warn('Failed to load stadiums from API.'))
+    .finally(hideSpinner);
+}
+
+loadStadiums();
+
+
+/* =========================
+   Draw group (for "Add")
+========================= */
+const drawnItems = new L.FeatureGroup().addTo(map);
+
+// اگر خواستی کنترل پیش‌فرض را هم داشته باشی، این را اضافه کن:
+// const drawControl = new L.Control.Draw({ position:'topleft', draw:false, edit:{ featureGroup: drawnItems } }).addTo(map);
+
+/* =========================
+   دکمه Add Stadium
+========================= */
+const addBtn = document.getElementById('add-stadium-button');
+let addStadiumMode = false;
+let activeDraw = null;
+
+if (addBtn) {
+  addBtn.addEventListener('click', () => {
+    addStadiumMode = !addStadiumMode;
+
+    if (addStadiumMode) {
+      activeDraw = new L.Draw.Marker(map);
+      activeDraw.enable();
+      addBtn.style.background = '#4caf50';
+    } else {
+      if (activeDraw) { activeDraw.disable(); activeDraw = null; }
+      addBtn.style.background = '#0d6efd';
+    }
+  });
+}
+
+/* =========================
+   دکمه Edit Stadium
+========================= */
+const editBtn = document.getElementById('edit-stadium-button');
+let editMode = false;
+
+if (editBtn) {
+  editBtn.addEventListener('click', () => {
+    editMode = !editMode;
+    editBtn.style.background = editMode ? '#ff9800' : '#0d6efd';
+  });
+}
+
+// لایه مخصوص مسیر
+const routeLayer = L.layerGroup().addTo(map);
+
+// حالت انتخاب مسیر
+let routingMode = false;
+const routeBtn = document.getElementById('route-button');
+
+routeBtn.addEventListener('click', () => {
+  routingMode = !routingMode;
+  routeBtn.style.background = routingMode ? "#4caf50" : "#0d6efd";
+  if (!routingMode) routeLayer.clearLayers();
+});
+
+
+/* =========================
+   Helper: استخراج OID از فیچر
+========================= */
+function getOidFromFeature(feature) {
+  if (!feature) return null;
+  const p = feature.properties || {};
+
+  // اگر قبلاً ذخیره شده
+  if (p._oid != null) return p._oid;
+
+  // مستقیم از properties
+  if (p.OBJECTID != null) return p.OBJECTID;
+
+  // از feature.id مثل "US_STADIUMS.209"
+  if (typeof feature.id === 'string') {
+    const m = feature.id.match(/\.(\d+)$/);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
+
+/* =========================
+   وقتی مارکر Add شد → فرم ذخیره
+========================= */
+map.on(L.Draw.Event.CREATED, (e) => {
+  if (!addStadiumMode) return;
+
+  const layer = e.layer;
+  const { lat, lng } = layer.getLatLng();
+  drawnItems.addLayer(layer);
+
+  const content = `
+    <form id="stadium-form">
+      <h5>Add New Stadium</h5>
+      <label>Name:</label><input type="text" name="name" required><br>
+      <label>City:</label><input type="text" name="city" required><br>
+      <label>State (abbr):</label><input type="text" name="state" maxlength="2" required><br>
+      <button type="submit">Save</button>
+    </form>
+  `;
+
+  const popup = L.popup({ className: 'stadium-form-popup' })
+    .setLatLng([lat, lng])
+    .setContent(content)
+    .openOn(map);
+
+  setTimeout(() => {
+    const form = document.getElementById('stadium-form');
+    if (!form) return;
+
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      popup.setContent('Saving...');
+
+      fetch('/api/stadiums/create/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({
+          name: form.name.value.trim(),
+          city: form.city.value.trim(),
+          state: form.state.value.trim().toUpperCase(),
+          lat,
+          lng
+        })
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.status === 'success') {
+            popup.setContent(res.message || 'Saved.');
+            drawnItems.clearLayers();   // مارکر موقت پاک
+            loadStadiums();            // لایه‌ها رفرش
+            addStadiumMode = false;    // حالت Add خاموش
+            if (activeDraw) { activeDraw.disable(); activeDraw = null; }
+            if (addBtn) addBtn.style.background = '#0d6efd';
+            setTimeout(() => map.closePopup(), 1200);
+          } else {
+            popup.setContent('Error: ' + (res.message || 'Unknown error'));
+          }
+        })
+        .catch(() => popup.setContent('Server error.'));
+    });
+  }, 60);
+});
+
+/* =========================
+   بازکننده پاپ‌آپ ویرایش
+   (برای هر فیچر جداگانه صدا می‌زنیم)
+========================= */
+function openEditPopupForLayer(layer) {
+  if (!editMode) return;
+
+  const feature = layer.feature || {};
+  const props = feature.properties || {};
+  const oid = getOidFromFeature(feature);
+
+  if (!oid) { alert('No OBJECTID found for this feature.'); return; }
+
+  const content = `
+    <form id="edit-stadium-form">
+      <h5>Edit Stadium</h5>
+      <label>Name:</label><input type="text" name="name" value="${props.NAME || ''}" required><br>
+      <label>City:</label><input type="text" name="city" value="${props.CITY || ''}" required><br>
+      <label>State (abbr):</label><input type="text" name="state" value="${props.STATE || ''}" maxlength="2" required><br>
+      <button type="submit">Update</button>
+    </form>
+  `;
+
+  layer.bindPopup(content, { className: 'stadium-edit-popup' }).openPopup();
+
+  setTimeout(() => {
+    const form = document.getElementById('edit-stadium-form');
+    if (!form) return;
+
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      layer.closePopup();
+      // ... ادامه آپدیت
+    });
+  }, 50);
+}
+
+/* =========================
+   اتصال هندلر به هر فیچر
+   (این را در onEachFeature لایه GeoJSON صدا بزن)
+========================= */
+
+/* =========================
+   بارگذاری داده‌ها
+========================= */
+function loadStadiums() {
+  showSpinner('Updating stadiums…');
+
+  // اگر برای خودت API پروکسی ساختی:
+  // const url = '/api/stadiums/all/';
+  // اگر مستقیم از GeoServer می‌خوانی:
+  const url =
+    'http://localhost:8080/geoserver/final_project/ows?' +
+    'service=WFS&version=1.0.0&request=GetFeature&' +
+    'typeName=final_project:US_STADIUMS&outputFormat=application/json';
+
+  fetch(url)
+    .then((r) => r.json())
+    .then((geojson) => {
+      stadiumsLayer.clearLayers();
+      stadiumsLayer.addData(geojson);
+      drawVoronoi(geojson);
+    })
+    .catch(() => console.warn('Failed to load stadiums.'))
+    .finally(() => hideSpinner());
+}
+
+
+    /* =========================
+       Nearest Stadium tool
+    ========================= */
+    const nearestLayer = L.layerGroup().addTo(map);
+    let nearestMode = false;
+    document.getElementById('nearest-button').addEventListener('click', () => {
+      nearestMode = !nearestMode;
+      nearestLayer.clearLayers();
+      const btn = document.getElementById('nearest-button');
+      btn.style.background = nearestMode ? '#4caf50' : '#0d6efd';
+    });
+
+    map.on('click', (e) => {
+      if (!nearestMode) return;
+      const { lat, lng } = e.latlng;
+
+      nearestLayer.clearLayers();
+
+      L.circleMarker([lat, lng], {
+        radius: 6, weight: 2, color: '#333', fillOpacity: 0.7
+      }).bindTooltip('Query point').addTo(nearestLayer);
+
+      fetch(`/api/nearest/?lat=${lat}&lng=${lng}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.status !== 'ok') { alert(res.message || 'No result'); return; }
+          const s = res.stadium;
+
+          L.marker([s.lat, s.lng], { icon: stadiumIcon, pane: 'stadiumsPane' })
+            .bindPopup(
+              `<h5>${s.name}</h5>
+             <p><strong>City:</strong> ${s.city}</p>
+             <p><strong>State:</strong> ${s.state}</p>
+             <p><strong>Distance:</strong> ${res.distance_km.toFixed(2)} km</p>`
+            )
+            .addTo(nearestLayer)
+            .openPopup();
+
+          L.polyline([[lat, lng], [s.lat, s.lng]], { weight: 3, dashArray: '6,4' })
+            .addTo(nearestLayer);
+
+          map.fitBounds(L.latLngBounds([[lat, lng], [s.lat, s.lng]]).pad(0.25));
+        })
+        .catch(() => alert('Server error.'));
+    });
+
+    /* ======================================================
+       Progress Overlay + AJAX Modal for Statistical Report
+    ====================================================== */
+    // --- Spinner helpers (برای #loading-overlay) ---
+/* ---------- Prefetch Chart.js on idle ---------- */
+const chartJsReady = (() => {
+  let p = null;
+  return () => {
+    if (window.Chart) return Promise.resolve();
+    if (!p) {
+      p = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    return p;
+  };
+})();
+
+// بعد از لود صفحه، Chart.js رو توی زمان بیکار پیش‌بارگذاری کن
+window.addEventListener('load', () => {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => chartJsReady().catch(()=>{}));
+  } else {
+    setTimeout(() => chartJsReady().catch(()=>{}), 1200);
+  }
+});
+
+/* ---------- Cache stats for a short time ---------- */
+let __statsCache = null;
+let __statsCacheTs = 0;
+async function getAllStats(force = false) {
+  const now = Date.now();
+  if (!force && __statsCache && (now - __statsCacheTs) < 60_000) {
+    return __statsCache;
+  }
+  const data = await fetch('/api/statistics/all/').then(r => r.json());
+  __statsCache = data;
+  __statsCacheTs = now;
+  return data;
+}
+
+function ensureReportModal() {
+  if (document.getElementById('report-modal')) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'report-modal';
+  modal.style.cssText = `
+    position: fixed; inset: 0; z-index: 4100; display: none;
+    background: rgba(0,0,0,0.6); justify-content: center; align-items: center;`;
+
+  modal.innerHTML = `
+    <div id="report-content" style="
+      background:#fff; border-radius:12px; padding:20px; width:90%; max-width:900px;
+      max-height:90%; overflow:auto; position:relative;">
+      <button id="close-report" style="
+        position:absolute; top:10px; right:10px; border:none; border-radius:6px;
+        background:#dc3545; color:#fff; padding:6px 10px; cursor:pointer;">Close</button>
+      <h3 style="margin:0 0 12px;">📊 Statistical Report</h3>
+      <canvas id="report-chart" height="120"></canvas>
+      <table id="report-table" style="margin-top:18px; width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; border-bottom:1px solid #e5e7eb; padding:8px;">State</th>
+            <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:8px;">Stadium Count</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target.id === 'report-modal') modal.style.display = 'none';
+  });
+  document.getElementById('close-report').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') modal.style.display = 'none';
+  });
+}
+
+
+/* ---------- Render report (reuse chart instance, no heavy DOM) ---------- */
+let chartInstance = null;
+
+function renderReport(data) {
+  ensureReportModal();
+
+  // جدول را یکجا بساز (سریع‌تر از appendRow تکی)
+  const tbody = document.querySelector('#report-table tbody');
+  const entries = Object.entries(data);
+  const rowsHtml = entries.map(([state, count]) =>
+    `<tr>
+      <td style="padding:8px; border-bottom:1px solid #f3f4f6;">${state}</td>
+      <td style="padding:8px; border-bottom:1px solid #f3f4f6; text-align:right;">${count}</td>
+    </tr>`
+  ).join('');
+  tbody.innerHTML = rowsHtml;
+
+  // داده‌های چارت
+  const labels = entries.map(([s]) => s);
+  const values = entries.map(([, c]) => c);
+
+  const ctx = document.getElementById('report-chart').getContext('2d');
+
+  if (!chartInstance) {
+    // اولین بار: بساز
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Number of Stadiums',
+          data: values,
+          backgroundColor: 'rgba(54, 162, 235, 0.7)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,                 // ⬅️ بدون انیمیشن برای سریع‌تر شدن
+        plugins: { legend: { display: true } },
+        scales: {
+          x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 0 } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  } else {
+    // دفعات بعد: فقط آپدیت کن (سریع)
+    chartInstance.options.animation = false;
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = values;
+    chartInstance.update('none');        // ⬅️ آپدیت بدون انیمیشن
+  }
+
+  document.getElementById('report-modal').style.display = 'flex';
+}
+
+/* ---------- Attach handler with spinner + prefetch ---------- */
+function showSpinner(msg = 'Loading report..') {
+  const overlay = document.getElementById('loading-overlay');
+  const txt = document.getElementById('loading-text');
+  if (txt) txt.textContent = msg;
+  overlay.style.display = 'flex';
+}
+function hideSpinner() {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.style.display = 'none';
+}
+
+function attachReportHandler() {
+  const button = document.getElementById('report-button');
+  if (!button) return;
+
+  button.addEventListener('click', async (e) => {
+    e.preventDefault();
+    showSpinner('loadng reports...');
+    try {
+      // همزمان: آماده‌سازی Chart.js + گرفتن آمار (احتمالاً از کش)
+      const [_, stats] = await Promise.all([
+        chartJsReady(),
+        getAllStats()
+      ]);
+      renderReport(stats);
+    } catch (err) {
+      console.error(err);
+      alert('Error loading report.');
+    } finally {
+      hideSpinner();
+    }
+  });
+}
+attachReportHandler();
+
+
+/*-----------voronoi diagram----------------*/
+ const voronoiLayer = L.layerGroup();
+
+  function drawVoronoi(stadiumsGeoJSON) {
+    // 1) فقط مختصات معتبر از Point و MultiPoint
+    const pts = [];
+    if (stadiumsGeoJSON && Array.isArray(stadiumsGeoJSON.features)) {
+      stadiumsGeoJSON.features.forEach(f => {
+        if (!f || !f.geometry) return;
+
+        if (f.geometry.type === "Point") {
+          const [x, y] = f.geometry.coordinates || [];
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            pts.push(turf.point([x, y], f.properties || {}));
+          }
+        } else if (f.geometry.type === "MultiPoint") {
+          (f.geometry.coordinates || []).forEach(coord => {
+            const [x, y] = coord || [];
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              pts.push(turf.point([x, y], f.properties || {}));
+            }
+          });
+        }
+      });
+    }
+
+    const points = turf.featureCollection(pts);
+
+    // حداقل 2 نقطه لازم داریم
+    if (!points.features.length || points.features.length < 2) {
+      console.warn("Not enough valid points for Voronoi.");
+      return;
+    }
+
+    // 2) bbox از خود نقاط + کمی پَدوَرد برای حاشیه
+    const bb = turf.bbox(points); // [minX,minY,maxX,maxY]
+    const pad = 1; // درجه
+    const bbox = [bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad];
+
+    // 3) اجرای Voronoi
+    const vor = turf.voronoi(points, { bbox });
+
+    // 4) اگر خروجی خالی/نامعتبر بود، چیزی نمایش نده
+    if (!vor || !Array.isArray(vor.features) || !vor.features.length) {
+      console.warn("Voronoi returned empty output.");
+      return;
+    }
+
+    // 5) پاک کردن لایه قبلی و افزودن جدید
+    voronoiLayer.clearLayers();
+    L.geoJSON(vor, {
+      style: {
+        color: "#333",
+        weight: 1,
+        fillOpacity: 0.3,
+        fillColor: "#74c476"
+      },
+      onEachFeature: (feature, layer) => {
+        layer.bindPopup("Voronoi Cell");
+      }
+    }).addTo(voronoiLayer);
+  }
+
+  // فراخوانی بعد از لود استادیوم‌ها
+  fetch('http://localhost:8080/geoserver/final_project/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=final_project:US_STADIUMS&outputFormat=application/json')
+    .then(r => r.json())
+    .then(geojson => {
+      stadiumsLayer.clearLayers();
+      stadiumsLayer.addData(geojson);
+
+      // رسم Voronoi
+      drawVoronoi(geojson);
+    })
+    .catch(err => console.error(err));
+
+    // لایه Voronoi
+
+
+// وضعیت روشن/خاموش
+let voronoiVisible = false;
+
+// دکمه داشبورد
+document.getElementById('voronoi-button').addEventListener('click', () => {
+  voronoiVisible = !voronoiVisible;
+  const btn = document.getElementById('voronoi-button');
+
+  if (voronoiVisible) {
+    map.addLayer(voronoiLayer);
+    btn.style.background = "#4caf50"; // سبز یعنی روشن
+  } else {
+    map.removeLayer(voronoiLayer);
+    btn.style.background = "#0d6efd"; // آبی یعنی خاموش
+  }
+});
+
+const searchInput = document.getElementById('search-input');
+const suggestionsBox = document.createElement('div');
+suggestionsBox.id = 'suggestions';
+suggestionsBox.style.position = 'absolute';
+suggestionsBox.style.top = searchInput.offsetTop + searchInput.offsetHeight + 'px';
+suggestionsBox.style.left = searchInput.offsetLeft + 'px';
+suggestionsBox.style.width = searchInput.offsetWidth + 'px';
+suggestionsBox.style.background = '#fff';
+suggestionsBox.style.border = '1px solid #ccc';
+suggestionsBox.style.maxHeight = '200px';
+suggestionsBox.style.overflowY = 'auto';
+suggestionsBox.style.display = 'none';
+searchInput.parentNode.appendChild(suggestionsBox);
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim();
+  if (q.length < 2) { 
+    suggestionsBox.style.display = 'none'; 
+    return; 
+  }
+
+  fetch(`/api/search/?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => {
+      suggestionsBox.innerHTML = '';
+      if (!data.length) {
+        suggestionsBox.style.display = 'none';
+        return;
+      }
+      data.forEach(item => {
+        const div = document.createElement('div');
+        div.style.padding = '6px';
+        div.style.cursor = 'pointer';
+        div.textContent = `${item.NAME} (${item.TYPE})`;
+        div.addEventListener('click', () => {
+          searchInput.value = item.NAME;
+          suggestionsBox.style.display = 'none';
+          // اینجا نمایش روی نقشه
+          map.setView([item.LATITUDE, item.LONGITUDE], item.TYPE === 'stadium' ? 12 : 6);
+        });
+        suggestionsBox.appendChild(div);
+      });
+      suggestionsBox.style.display = 'block';
+    });
+});
+
+  </script>
+
+</body>
+
+</html>

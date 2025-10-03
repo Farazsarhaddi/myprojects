@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پروژه WebGIS استادیوم‌های آمریکا</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { padding: 0; margin: 0; }
+        html, body, #map { height: 100%; width: 100%; }
+        /* استایل برای پاپ‌آپ */
+        .leaflet-popup-content-wrapper { border-radius: 5px; }
+        .leaflet-popup-content { font-family: sans-serif; }
+        .leaflet-popup-content h5 { margin: 5px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .leaflet-popup-content p { margin: 8px 0; }
+        .leaflet-popup-content strong { color: #333; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script>
+        // مقداردهی اولیه نقشه
+        var map = L.map('map').setView([39.82, -98.57], 5);
+
+        // اضافه کردن لایه نقشه پایه
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // اضافه کردن لایه استادیوم‌ها از GeoServer
+        var stadiumsLayer = L.tileLayer.wms('http://localhost:8080/geoserver/final_project/wms', {
+            layers: 'final_project:US_STADIUMS',
+            format: 'image/png',
+            transparent: true,
+        }).addTo(map);
+
+        // ===================================================================
+        // بخش جدید: کد مربوط به ابزار Identify با کلیک روی نقشه
+        // ===================================================================
+        map.on('click', function(e) {
+            // پارامترهای لازم برای درخواست GetFeatureInfo از ژئوسرور
+            var params = {
+                BBOX: map.getBounds().toBBoxString(),
+                WIDTH: map.getSize().x,
+                HEIGHT: map.getSize().y,
+                X: Math.round(e.containerPoint.x),
+                Y: Math.round(e.containerPoint.y),
+            };
+
+            // ساخت URL برای ارسال به API جنگو
+            var url = `/api/identify/?${new URLSearchParams(params).toString()}`;
+            
+            // ارسال درخواست به بک‌اند جنگو
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    // اگر ژئوسرور عارضه‌ای پیدا کرده باشد
+                    if (data.features && data.features.length > 0) {
+                        var feature = data.features[0];
+                        var props = feature.properties;
+                        
+                        // ساخت محتوای HTML برای نمایش در پاپ‌آپ
+                        var content = `
+                            <h5>${props.NAME}</h5>
+                            <p><strong>شهر:</strong> ${props.CITY}</p>
+                            <p><strong>ایالت:</strong> ${props.STATE}</p>
+                            <p><strong>وضعیت:</strong> ${props.STATUS_COD}</p>
+                        `;
+
+                        // نمایش پاپ‌آپ در محل کلیک شده
+                        L.popup()
+                            .setLatLng(e.latlng)
+                            .setContent(content)
+                            .openOn(map);
+                    }
+                })
+                .catch(err => {
+                    console.error("خطا در دریافت اطلاعات:", err);
+                });
+        });
+    </script>
+</body>
+</html>

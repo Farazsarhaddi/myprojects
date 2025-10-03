@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>گزارش آماری استادیوم‌ها</title>
+
+  <!-- Chart.js CDN -->
+  {% load static %}
+<script src="{% static 'js/chart.umd.js' %}"></script>
+
+
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f9f9f9;
+      direction: rtl;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #333;
+    }
+
+    .chart-container {
+      width: 90%;
+      max-width: 1000px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+  #progress-overlay {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(255,255,255,0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+    font-family: Arial, sans-serif;
+    color: #333;
+  }
+  #progress-bar {
+    width: 0%;
+    height: 8px;
+    background: #3498db;
+    transition: width 0.3s ease;
+  }
+  #progress-text {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #555;
+  }
+
+
+  </style>
+</head>
+<body>
+
+    <!-- Progress Overlay -->
+  <div id="progress-overlay">
+    <div id="progress-bar"></div>
+    <p id="progress-text">0%</p>
+  </div>
+
+
+  <h2>📊 نمودار آماری تعداد استادیوم‌ها در ایالت‌های مختلف</h2>
+
+  <div class="chart-container">
+    <canvas id="barChart"></canvas>
+  </div>
+
+<script>
+  // داده‌ها از ویو به صورت JSON-safe ارسال شده‌اند
+  const stateLabels = JSON.parse('{{ states|safe|escapejs }}');
+  const stadiumCounts = JSON.parse('{{ counts|safe|escapejs }}');
+
+  // ✅ مرتب‌سازی از بیشترین به کمترین
+  const sorted = stateLabels
+    .map((s, i) => [s, stadiumCounts[i]])      // تبدیل به جفت [state, count]
+    .sort((a, b) => b[1] - a[1]);              // مرتب‌سازی نزولی بر اساس count
+
+  const sortedLabels = sorted.map(item => item[0]);
+  const sortedCounts = sorted.map(item => item[1]);
+
+  const ctx = document.getElementById('barChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sortedLabels,   // حالا از داده‌های مرتب استفاده می‌کنیم
+      datasets: [{
+        label: 'تعداد استادیوم‌ها',
+        data: sortedCounts,
+        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true },
+        tooltip: { mode: 'index', intersect: false },
+        title: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'تعداد'
+          }
+        },
+        x: {
+          title: {
+            display: true,
+            text: 'ایالت‌ها'
+          }
+        }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
