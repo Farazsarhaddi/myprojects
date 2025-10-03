@@ -1,0 +1,17 @@
+Given :    Probability of changing to :
+
+           Cl. 1  Cl. 2  Cl. 3  Cl. 4 
+
+Class 1  : 0.9117 0.0847 0.0012 0.0024 
+Class 2  : 0.3183 0.6215 0.0126 0.0476 
+Class 3  : 0.2369 0.4892 0.1588 0.1151 
+Class 4  : 0.1153 0.4580 0.0632 0.3634 
+
+
+First landcover image  : reclassify2020_b1
+Second landcover image : reclassify2024_b1
+Output prefix          : prediction2030
+Time interval 1        : 4
+Time interval 2        : 6
+Background cell option : 1
+Proportional error     : 0.0

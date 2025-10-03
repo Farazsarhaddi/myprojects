@@ -1,0 +1,26 @@
+file format : IDRISI Raster A.1
+file title  : Markovian Conditional Probability of being class_3
+data type   : real
+file type   : binary
+columns     : 1115
+rows        : 1115
+ref. system : latlong
+ref. units  : deg
+unit dist.  : 1.0000000
+min. X      : 50.6997468
+max. X      : 51.0002333
+min. Y      : 32.1997520
+max. Y      : 32.5002385
+pos'n error : unknown
+resolution  : 0.0002695
+min. value  : 0.0000000
+max. value  : 0.1588371
+display min : 0.0000000
+display max : 0.1588371
+value units : unspecified
+value error : unknown
+flag value  : 15.0000000
+flag def'n  : missing data
+legend cats : 0
+lineage     : This file was created by MARKOV with the command line: 
+lineage     : E:\master_1\Msc_4032\spatial_processing\TA\AGIS_HW04__spring2025\reclassify2020_b1.rst*E:\master_1\Msc_4032\spatial_processing\TA\AGIS_HW04__spring2025\reclassify2024_b1.rst*E:\master_1\Msc_4032\spatial_processing\TA\AGIS_HW04__spring2025\prediction2030*1*0.0*4*6
